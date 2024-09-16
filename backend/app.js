@@ -18,8 +18,8 @@ dotenv.config({ path: ".env" });
 const PORT = process.env.PORT || 8080;
 
 // Middleware
-app.use(helmet()); // Helps secure Express apps with various HTTP headers
-app.use(morgan('combined')); // HTTP request logger
+app.use(helmet());
+app.use(morgan('combined'));
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -28,8 +28,8 @@ app.use(cors({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 app.use(limiter);
 
@@ -40,7 +40,7 @@ app.use('/uploads', express.static('uploads'));
 
 // Routes
 app.get('/', (req, res) => {
-  res.json({ message: `Server is running on port ${PORT}`, environment: NODE_ENV });
+  res.json({ message: `Server is running on port ${PORT}`, environment: process.env.NODE_ENV });
 });
 
 // Initialize database tables
@@ -60,6 +60,12 @@ const initializeTables = async () => {
   }
 };
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
+
 // Error handling for 404 routes
 app.use('*', (req, res) => {
   res.status(404).send('Not Found');
@@ -69,7 +75,7 @@ const startServer = async () => {
   try {
     const result = await pool.query('SELECT NOW()');
     console.log(`Database connection successful ${result.rows[0].now}`);
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
   } catch (err) {
@@ -77,6 +83,16 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+// Unhandled Promise Rejection
+process.on("unhandledRejection", (err) => {
+  console.log(`Error: ${err.message}`);
+  console.log(`Shutting down the server due to Unhandled Promise Rejection`);
+
+  server.close(() => {
+    process.exit(1);
+  });
+});
 
 // Start initialization and server
 initializeTables().then(startServer);
